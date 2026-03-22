@@ -60,6 +60,16 @@ class ContactosResponse(BaseModel):
             }
         }
 
+class ContactoCreate(BaseModel):
+    nombre: str
+    telefono: str
+    email: str
+
+class ContactoUpdate(BaseModel):
+    nombre: str | None = None
+    telefono: str | None = None
+    email: str | None = None
+
 @app.get(
     "/v1/contactos",
     status_code=202,
@@ -177,42 +187,130 @@ async def get_contacto_by_id(id_contacto: int = 0):
             }
     )
 
-class ContactoCreate(BaseModel):
-    nombre: str
-    telefono: str
-    email: str
-
 @app.post(
     "/v1/contactos/crear",
     summary="Crear nuevo contacto",
     response_model=Contacto,
     description="Endpoint para insertar un nuevo contacto en la base de datos"
 )
-
 async def create_contacto(contacto: ContactoCreate):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-
-        cursor.execute("""
-            INSERT INTO contactos (nombre, telefono, email)
-            VALUES (?, ?, ?)
-        """, (contacto.nombre, contacto.telefono, contacto.email))
-
+        cursor.execute("INSERT INTO contactos (nombre, telefono, email) VALUES (?, ?, ?)",
+                       (contacto.nombre, contacto.telefono, contacto.email))
         conn.commit()
-
         new_id = cursor.lastrowid
-
-        cursor.execute("""
-            SELECT id_contacto, nombre, telefono, email
-            FROM contactos
-            WHERE id_contacto = ?
-        """, (new_id,))
-
+        cursor.execute("SELECT id_contacto, nombre, telefono, email FROM contactos WHERE id_contacto = ?", (new_id,))
         new_contact = cursor.fetchone()
         conn.close()
 
-        return dict(new_contact)
-
+        return JSONResponse(
+            status_code=201,
+            content={
+                "table": "contactos",
+                "items": dict(new_contact),
+                "datatime": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                "message": "Contacto creado exitosamente"
+            }
+        )
     except Exception as e:
-        raise HTTPException(status_code=400, detail="Error al insertar el contacto")
+        print(f"Error al insertar el contacto: {e.args}")
+        return JSONResponse(
+            status_code=400,
+            content={
+                "table": "contactos",
+                "items": [],
+                "datatime": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                "message": "Error al insertar el contacto"
+            }
+        )
+
+@app.put(
+    "/v1/contactos/{id_contacto}",
+    summary="Modificar contacto",
+    response_model=Contacto,
+    description="Endpoint para modificar un contacto en la base de datos"
+)
+async def update_contacto(id_contacto: int, contacto: ContactoUpdate):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM contactos WHERE id_contacto = ?", (id_contacto,))
+        if not cursor.fetchone():
+            conn.close()
+            raise HTTPException(status_code=404, detail="Contacto no encontrado")
+
+        cursor.execute("""
+            UPDATE contactos
+            SET nombre = COALESCE(?, nombre),
+                telefono = COALESCE(?, telefono),
+                email = COALESCE(?, email)
+            WHERE id_contacto = ?
+        """, (contacto.nombre, contacto.telefono, contacto.email, id_contacto))
+        conn.commit()
+
+        cursor.execute("SELECT id_contacto, nombre, telefono, email FROM contactos WHERE id_contacto = ?", (id_contacto,))
+        updated_contact = cursor.fetchone()
+        conn.close()
+
+        return JSONResponse(
+            status_code=202,
+            content={
+                "table": "contactos",
+                "items": dict(updated_contact),
+                "datatime": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                "message": "Contacto actualizado exitosamente"
+            }
+        )
+    except Exception as e:
+        print(f"Error al actualizar el contacto: {e.args}")
+        return JSONResponse(
+            status_code=400,
+            content={
+                "table": "contactos",
+                "items": [],
+                "datatime": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                "message": "Error al actualizar el contacto"
+            }
+        )
+
+@app.delete(
+    "/v1/contactos/{id_contacto}",
+    summary="Eliminar contacto",
+    response_model=Contacto,
+    description="Endpoint para eliminar un contacto en la base de datos"
+)
+async def delete_contacto(id_contacto: int):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM contactos WHERE id_contacto = ?", (id_contacto,))
+        if not cursor.fetchone():
+            conn.close()
+            raise HTTPException(status_code=404, detail="Contacto no encontrado")
+
+        cursor.execute("DELETE FROM contactos WHERE id_contacto = ?", (id_contacto,))
+        conn.commit()
+        conn.close()
+
+        return JSONResponse(
+            status_code=202,
+            content={
+                "table": "contactos",
+                "items": [],
+                "datatime": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                "message": "Contacto eliminado exitosamente"
+            }
+        )
+    except Exception as e:
+        print(f"Error al eliminar el contacto: {e.args}")
+        return JSONResponse(
+            status_code=400,
+            content={
+                "table": "contactos",
+                "items": [],
+                "datatime": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                "message": "Error al eliminar el contacto"
+            }
+        )
