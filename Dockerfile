@@ -10,4 +10,7 @@ COPY ./app /code/app
 
 EXPOSE 80
 
+# Inicializar la base de datos antes de ejecutar la aplicación
+RUN python app/init_db.py
+
 CMD ["fastapi", "run", "app/main.py", "--port", "80"]
