@@ -8,6 +8,26 @@ from fastapi.responses import JSONResponse # El otro manejador de errores
 
 app = FastAPI()
 
+def init_db():
+    """Asegura que la base de datos y tabla existen"""
+    conn = sqlite3.connect("agenda.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS contactos (
+            id_contacto INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre VARCHAR(100) NOT NULL,
+            telefono VARCHAR(100) NOT NULL UNIQUE,
+            email VARCHAR(100) NOT NULL
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+@app.on_event("startup")
+def startup():
+    """Inicializa la BD al iniciar la aplicación"""
+    init_db()
+
 def get_db_connection():
     conn = sqlite3.connect("agenda.db")
     conn.row_factory = sqlite3.Row
