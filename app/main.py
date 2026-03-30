@@ -109,7 +109,6 @@ async def get_contactos(limit: int = 10, skip: int = 0):
         )
 
     try:
-
         conn = get_db_connection()
         cursor = conn.cursor()
 
@@ -120,7 +119,6 @@ async def get_contactos(limit: int = 10, skip: int = 0):
         """, (limit, skip))
 
         rows = cursor.fetchall()
-
         conn.close()
 
         contactos = [dict(row) for row in rows]
@@ -135,25 +133,20 @@ async def get_contactos(limit: int = 10, skip: int = 0):
             "skip": skip
         }
 
-        return JSONResponse(
-            status_code=202,
-            content=data
-        )
+        return JSONResponse(status_code=202, content=data)
 
     except Exception as e:
-
         print(f"Error al consultar los contactos: {e.args}")
-
         return JSONResponse(
-            status_code=400,
+            status_code=500,
             content={
-                "table":"contactos",
-                "items":[],
-                "count":0,
-                "datetime":datetime.now().strftime("%m/%d/%Y, %H:%M:%S"),
-                "message":"Error al consultar la base de datos",
-                "limit":limit,
-                "skip":skip
+                "table": "contactos",
+                "items": [],
+                "count": 0,
+                "datetime": datetime.now().strftime("%m/%d/%Y, %H:%M:%S"),
+                "message": "Error al consultar la base de datos",
+                "limit": limit,
+                "skip": skip
             }
         )
 
@@ -163,7 +156,13 @@ async def get_contactos(limit: int = 10, skip: int = 0):
     response_model=Contacto,
     description="Endpoint que regresa un contacto por su id_contacto"
 )
-async def get_contacto_by_id(id_contacto: int = 0):
+async def get_contacto_by_id(id_contacto: int):
+    if id_contacto < 0:
+        raise HTTPException(
+            status_code=422,
+            detail="Los numeros negativos no son validos"
+        )
+
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -177,6 +176,12 @@ async def get_contacto_by_id(id_contacto: int = 0):
         row = cursor.fetchone()
         conn.close()
 
+        if row is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Contacto no encontrado"
+            )
+
         data = {
             "table": "contactos",
             "items": dict(row),
@@ -184,28 +189,21 @@ async def get_contacto_by_id(id_contacto: int = 0):
             "message": "Dato consultado exitosamente"
         }
 
-        if id_contacto < 0:
-            raise HTTPException(
-        status_code=400,
-        detail="Los numeros negativos no son validos"
-        )
+        return JSONResponse(status_code=202, content=data)
 
-        return JSONResponse(
-            status_code=202,
-            content=data
-        )
-    
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"Error al consultar los contactos: {e.args}")
         return JSONResponse(
-        status_code=400,
-        content={
-            "table":"contactos",
-            "item":[],
-            "datatime":datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
-            "message": f"Error al consultar el contacto"
+            status_code=500,
+            content={
+                "table": "contactos",
+                "item": [],
+                "datatime": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                "message": "Error al consultar el contacto"
             }
-    )
+        )
 
 @app.post(
     "/v1/contactos/crear",
@@ -214,14 +212,31 @@ async def get_contacto_by_id(id_contacto: int = 0):
     description="Endpoint para insertar un nuevo contacto en la base de datos"
 )
 async def create_contacto(contacto: ContactoCreate):
+    # Validaciones de entrada — responde 400 si los campos son inválidos
+    if not contacto.nombre.strip() or not contacto.telefono.strip() or not contacto.email.strip():
+        return JSONResponse(
+            status_code=400,
+            content={
+                "table": "contactos",
+                "items": [],
+                "datatime": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                "message": "Campos obligatorios no deben estar vacíos"
+            }
+        )
+
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO contactos (nombre, telefono, email) VALUES (?, ?, ?)",
-                       (contacto.nombre, contacto.telefono, contacto.email))
+        cursor.execute(
+            "INSERT INTO contactos (nombre, telefono, email) VALUES (?, ?, ?)",
+            (contacto.nombre.strip(), contacto.telefono.strip(), contacto.email.strip())
+        )
         conn.commit()
         new_id = cursor.lastrowid
-        cursor.execute("SELECT id_contacto, nombre, telefono, email FROM contactos WHERE id_contacto = ?", (new_id,))
+        cursor.execute(
+            "SELECT id_contacto, nombre, telefono, email FROM contactos WHERE id_contacto = ?",
+            (new_id,)
+        )
         new_contact = cursor.fetchone()
         conn.close()
 
@@ -234,10 +249,23 @@ async def create_contacto(contacto: ContactoCreate):
                 "message": "Contacto creado exitosamente"
             }
         )
+
+    except sqlite3.IntegrityError as e:
+        # Teléfono duplicado u otra violación de restricción — responde 400
+        print(f"Error de integridad: {e.args}")
+        return JSONResponse(
+            status_code=400,
+            content={
+                "table": "contactos",
+                "items": [],
+                "datatime": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                "message": "Error al insertar el contacto: dato duplicado o inválido"
+            }
+        )
     except Exception as e:
         print(f"Error al insertar el contacto: {e.args}")
         return JSONResponse(
-            status_code=400,
+            status_code=500,
             content={
                 "table": "contactos",
                 "items": [],
@@ -270,7 +298,10 @@ async def update_contacto(id_contacto: int, contacto: ContactoUpdate):
         """, (contacto.nombre, contacto.telefono, contacto.email, id_contacto))
         conn.commit()
 
-        cursor.execute("SELECT id_contacto, nombre, telefono, email FROM contactos WHERE id_contacto = ?", (id_contacto,))
+        cursor.execute(
+            "SELECT id_contacto, nombre, telefono, email FROM contactos WHERE id_contacto = ?",
+            (id_contacto,)
+        )
         updated_contact = cursor.fetchone()
         conn.close()
 
@@ -283,10 +314,13 @@ async def update_contacto(id_contacto: int, contacto: ContactoUpdate):
                 "message": "Contacto actualizado exitosamente"
             }
         )
+
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"Error al actualizar el contacto: {e.args}")
         return JSONResponse(
-            status_code=400,
+            status_code=500,
             content={
                 "table": "contactos",
                 "items": [],
@@ -323,10 +357,13 @@ async def delete_contacto(id_contacto: int):
                 "message": "Contacto eliminado exitosamente"
             }
         )
+
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"Error al eliminar el contacto: {e.args}")
         return JSONResponse(
-            status_code=400,
+            status_code=500,
             content={
                 "table": "contactos",
                 "items": [],
