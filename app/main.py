@@ -41,7 +41,7 @@ def get_db_connection():
 )
 def get_root():
     return {
-        "message": "Api de Agenda",
+        "message": "Api de la Agenda",
         "datatime": datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     }
 
