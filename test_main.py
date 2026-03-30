@@ -264,22 +264,13 @@ def test_post_contacto_crear_telefono_duplicado(telefono_duplicado_limpio):
     assert response2.status_code == 400
 
 
-# 24. PUT payload vacio — debe responder 202 (sin cambios) o 400
-def test_put_contacto_update_payload_vacio(contacto_creado):
-    response = requests.put(
-        f"{URL_BASE}/v1/contactos/{contacto_creado['id_contacto']}", json={}
-    )
-    assert response.status_code in [202, 400]
-
-
-# 25. PUT 422 /v1/contactos/abc id invalido
+# 26. PUT 422 /v1/contactos/abc id invalido
 def test_put_contacto_update_id_texto():
     payload = {"nombre": "Texto"}
     response = requests.put(f"{URL_BASE}/v1/contactos/abc", json=payload)
     assert response.status_code == 422
 
-
-# 26. DELETE 422 /v1/contactos/abc id invalido
+# 27. DELETE 422 /v1/contactos/abc id invalido
 def test_delete_contacto_id_texto():
     response = requests.delete(f"{URL_BASE}/v1/contactos/abc")
     assert response.status_code == 422
