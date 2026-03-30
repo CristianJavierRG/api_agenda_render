@@ -175,3 +175,63 @@ def test_delete_contacto_valido():
 def test_delete_contacto_inexistente():
     response = requests.delete(f"{URL_BASE}/v1/contactos/99999")
     assert response.status_code == 404
+
+
+# 19. GET 422 /v1/contactos?limit=1.5&skip=0 tipo de dato invalido
+def test_get_contactos_limit_float_skip_0():
+    url = f"{URL_BASE}/v1/contactos?limit=1.5&skip=0"
+    response = requests.get(url)
+    assert response.status_code == 422
+
+
+# 20. GET 422 /v1/contactos?limit=10&skip=xyz tipo de dato invalido
+def test_get_contactos_limit_10_skip_xyz():
+    url = f"{URL_BASE}/v1/contactos?limit=10&skip=xyz"
+    response = requests.get(url)
+    assert response.status_code == 422
+
+
+# 21. GET 422 /v1/contactos/abc id no numerico
+def test_get_contacto_by_id_texto():
+    url = f"{URL_BASE}/v1/contactos/abc"
+    response = requests.get(url)
+    assert response.status_code == 422
+
+
+# 22. POST 400 /v1/contactos/crear con JSON invalido
+def test_post_contacto_crear_json_invalido():
+    body = "esto no es json"
+    response = requests.post(f"{URL_BASE}/v1/contactos/crear", data=body, headers={"Content-Type": "application/json"})
+    assert response.status_code == 422 or response.status_code == 400
+
+
+# 23. POST 400 /v1/contactos/crear tel duplicado
+def test_post_contacto_crear_telefono_duplicado():
+    # Primer insert
+    payload1 = {"nombre": "Duplicado Uno", "telefono": "1276393856", "email": "dup1@test.com"}
+    response1 = requests.post(f"{URL_BASE}/v1/contactos/crear", json=payload1)
+    assert response1.status_code in [201, 400]
+
+    payload2 = {"nombre": "Duplicado Dos", "telefono": "1276393856", "email": "dup2@test.com"}
+    response2 = requests.post(f"{URL_BASE}/v1/contactos/crear", json=payload2)
+    assert response2.status_code == 400
+
+
+# 24. PUT 422 /v1/contactos/1 payload vacio
+def test_put_contacto_update_payload_vacio():
+    response = requests.put(f"{URL_BASE}/v1/contactos/1", json={})
+    assert response.status_code in [202, 400]
+
+
+# 25. PUT 422 /v1/contactos/abc id invalido
+def test_put_contacto_update_id_texto():
+    payload = {"nombre": "Texto"}
+    response = requests.put(f"{URL_BASE}/v1/contactos/abc", json=payload)
+    assert response.status_code == 422
+
+
+# 26. DELETE 422 /v1/contactos/abc id invalido
+def test_delete_contacto_id_texto():
+    response = requests.delete(f"{URL_BASE}/v1/contactos/abc")
+    assert response.status_code == 422
+
